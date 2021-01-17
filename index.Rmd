@@ -1,0 +1,259 @@
+---
+title: "Relación del PIBpc de EEUU con las elecciones de 2020"
+subtitle: "Antonio Langa Lahoz(anlanla@alumni.uv.es)" #- pongo tú nombre ahí para q aparezca más grande q el de la UV
+author: "Universitat de València"
+date: "Diciembre de 2020 (actualizado el `r format(Sys.time(), '%d-%m-%Y')`)"
+output:
+  html_document:
+    #css: "./assets/my_css_file.css"
+    theme: paper
+    highlight: textmate 
+    toc: true
+    toc_depth: 3 
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    self_contained: true
+    number_sections: false
+    df_print: kable
+    code_download: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r packages-setup, include = FALSE}
+library(tidyverse)
+library(klippy)  #- remotes::install_github("rlesur/klippy")
+library(knitr)
+```
+
+```{r chunk-setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE, 
+                      #results = "hold",
+                      cache = FALSE, cache.path = "/caches/", comment = "#>",
+                      #fig.width = 7, #fig.height= 7,   
+                      #out.width = 7, out.height = 7,
+                      collapse = TRUE,  fig.show = "hold",
+                      fig.asp = 7/9, out.width = "60%", fig.align = "center")
+knitr::opts_chunk$set(dev = "png", dev.args = list(type = "cairo-png"))
+```
+
+```{r options-setup, include = FALSE}
+options(scipen = 999) #- para quitar la notación científica
+options("yaml.eval.expr" = TRUE) 
+```
+      
+```{r klippy, echo = FALSE}
+klippy::klippy(position = c("top", "right")) #- remotes::install_github("rlesur/klippy")
+```
+
+<hr class="linea-black">
+
+Trabajo elaborado para la asignatura "Programación y manejo de datos en la era del Big Data" de la Universitat de València durante el curso 2020-2021. El repo del trabajo está [aquí](https://github.com/Antonio202021/trabajo_BigData){target="_blank"}. La página web de la asignatura y los trabajos de mis compañeros pueden verse [aquí](https://perezp44.github.io/intro-ds-20-21-web/07-trabajos.html){target="_blank"}.
+
+<!-- El párrafo de arriba has de dejarlo casi igual, 
+        solo HAS de SUSTITUIR las 2 veces que aparece "perezp44" por tu usuario de Github-->
+    
+
+
+<hr class="linea-red">
+
+# 1. Introducción
+
+```{r, eval = TRUE, echo=FALSE}
+knitr::include_graphics(here::here("imagenes", "mapaelecciones.jpg"))
+```
+
+El primer martes de Noviembre cada 4 años se celebran elecciones en EEUU. En el país norteamericano no se cuentan los votos totales que recibe un candidato, sino lo que importa son los votos que reciben en el Colegio Electoral. Cada Estado asigna un número de electores a dicho colegio en función de su población. Este número coincide con el número de representantes que manda a la Cámara del Congreso más dos senadores que tiene cada Estado.
+Por lo tanto, es un estilo de sistema de puntos, el candidato que gana en un Estado(aunque sea por un voto) consigue todos los electores de ese Estado. Para ganar los candidatos necesitan llegar a 270 electores. Por eso puede darse que un cadidato gane el voto popular pero no el electoral y pierda la Presidencia(como ocurrió en el año 2000 y 2016). En el trabajo compararemos los votos con el PIBpc de los difeentes Estados.
+
+## Paquetes utilizados
+
+```{r}
+library(tidyverse)
+library(gganimate)
+library(plotly)
+library(patchwork)
+library(ggplot2)
+library(RColorBrewer)
+library(gt)
+library(ggthemes)
+library(gghighlight)
+```
+
+# 2. Datos utilizados
+Lo primero que hice para buscar ideas de trabajos miré en <https://www.kaggle.com/> donde pude encontrar dos datasets muy interesantes, los cuales he utilizado para el trabajo. Son [US Election 2020](https://www.kaggle.com/unanimad/us-election-2020) y [GDP per capita in US states with tableau](https://www.kaggle.com/mariapushkareva/gdp-per-capita-in-us-states-with-tableau/data?select=bea-gdp-by-state.csv). En el primer trabajo pude encontrar los datos de todos los votos agrupados en cada uno  de los estados y sus distritos.En el segundo encontré los datos del PIB per capita de todos los Estados.
+
+
+```{r, eval = TRUE}
+df <- rio::import(here::here("datos", "president_county_candidate.csv"))
+
+PIBpcUS <- read_csv("./datos/bea-gdp-by-state.csv", col_names = TRUE)
+
+```
+
+
+## 3. Tablas datos
+El PIB per capita es un indicador macroeconómico de productividad y desarrollo económico, usado para entregar una visión respecto al rendimiento de las condiciones económicas y sociales de un país, esto en consideración del crecimiento real y la fuerza laboral. Generalmente también se utiliza como indicador de bienestar social. Es la relación que hay entre el PIB y la cantidad de habitantes de un país.
+
+En la siguiente tabla tenemos los datos del PIB per capita de los diferentes Estados
+
+```{r, eval = TRUE}
+
+PIBpcUS1 <- PIBpcUS %>% select(-Fips)
+
+DT::datatable(PIBpcUS1)
+
+```
+
+
+En la tabla siguiente tenemos los datos de los votos de los diferentes partidos. He agrupado los difentes distritos que aparecían en el dataframe en los Estados pertenecientes. En la tabla podemos observar aparte de los votos por Estado, los diferentes candidatos que se presentan con sus respectivos partidos políticos. A parte de las dos principales candidaturas con los dos principales partidos(Republicano y Demócrata), vemos que también otros partidos como el Partido Libertario o el Partido Verde de los Estados Unidos.
+
+
+```{r, eval = TRUE}
+Votos <- df %>%  group_by(state, candidate, party)%>%
+  summarise(total_votes=sum(total_votes))
+
+DT::datatable(Votos, filter = 'top', 
+              options = list(pageLength = 5, autoWidth = TRUE ))
+
+```
+
+# 4. Análisis PIBpc
+
+En el siguiente gráfico podemos ver los datos del PIBpc de los disferentes Estados en el año 2017.
+
+```{r, echo = TRUE, eval = TRUE}
+df<- read_csv("./datos/bea-gdp-by-state.csv", col_names = TRUE)
+
+PIBpcEst <- df %>% slice(c(2:53))%>% 
+  rename( PIBpc2017 = "2017", PIBpc2016="2016",PIBpc2015="2015",
+                     PIBpc2014="2014", PIBpc2013="2013")
+p4 <- ggplot(PIBpcEst, aes(Area, PIBpc2017, size = PIBpc2017, color = PIBpc2017)) + geom_point()
+
+ggplotly(p4+ theme(legend.position = "none") +theme_bw()+
+           labs(title = "PIB per cápita USA", subtitle = "Año 2017", x = "Estados", y = "PIBpc"))
+```
+
+En estos gráficos he seleccionado y comparado los 6 primeros y últimos Estados en PIbpc
+
+```{r, echo = TRUE, eval = TRUE}
+#6 primeros estados PIBpc
+
+
+aa<- PIBpcEst %>% filter(Area %in% c("District of Columbia", "Massachusetts",
+"New York", "North Dakota","Alaska","Connecticut" ))
+
+p <- ggplot(aa, aes(Area,PIBpc2017))
+
+
+#6 últimos estados en PIBpc
+
+aa1<- PIBpcEst %>% filter(Area %in% c("	Mississippi", "Idaho",
+    "Arkansas", "West Virginia","Alabama","South Carolina" ))
+
+p1 <- ggplot(aa1, aes(Area,PIBpc2017))
+
+p+ geom_col()+  ylim(c(NA, 200000))+ labs(title = "PIBpc por Estados", subtitle = "Estados ricos y pobres", x = "Estados", y = "PIBpc")+ 
+  theme_solarized()+
+  p1+ geom_col()+  ylim(c(NA, 200000))+
+labs(x = "Estados", y = "PIBpc")+ theme_solarized()
+
+```
+
+# 4. Análisis votos por Estados
+Las elecciones presidenciales de 2020 se celebraron el martes 3 de noviembre de 2020, y fueron las quincuagésimo novenas elecciones presidenciales en Estados Unidos. En los siguietes gráficos analizaremos cuales han sido los resultados de los principales candidatos en dos puntos muy distintos. Uno en los Estados con mayor PIBpc del país y otro en los Estados con menor PIBpc.
+
+¿Que candidato ha tenido más apoyo en las zonas ricas?
+```{r, echo = TRUE, eval = TRUE}
+#Tratamos los datos del candidato Joe Biden
+
+df <- rio::import(here::here("datos", "president_county_candidate.csv"))
+
+
+jb <- df %>% filter(party == "DEM") %>% select(-county) %>% 
+  group_by(state, candidate)%>%
+  summarise(total_votes=sum(total_votes))
+
+jb1<- jb %>% mutate(Biden = total_votes)
+
+jb2 <- jb1 %>%select(state, Biden)
+
+#Tratamos los datos de Donald Trump
+
+dt <- df %>% filter(party=="REP")  %>% select(-county) %>% 
+  group_by(state, candidate)%>%
+  summarise(total_votes=sum(total_votes))
+
+dt1 <- dt %>% mutate(Trump = total_votes)
+
+dt2 <- dt1 %>%select(state,Trump)
+
+#Unimos los dos data
+
+df_vot <- full_join(jb2, dt2)
+
+rio::export(df_vot, "./Datos/df_vot.csv")
+
+#Cogemos los 6 estados mas ricos
+
+MR<- df_vot %>% filter(state %in% c("District of Columbia", "Massachusetts",
+                                    "New York", "North Dakota","Alaska","Connecticut" ))
+
+pMRB<- ggplot(MR, aes(state,Biden))
+
+
+pMRT<- ggplot(MR, aes(state,Trump))
+
+
+pMRB + geom_col(fill="blue") + ylim(NA,5500000)+theme_solarized()+
+labs(title = "Estados ricos", subtitle = "Año 2020", x = "Estados", y = "Biden")+ 
+  pMRT+ geom_col(fill="red")+ ylim(NA,5500000)+theme_solarized()+
+  labs( x = "Estados", y = "Trump")
+
+```
+
+
+¿Que candidato ha tenido más apoyo en las zonas pobres?
+
+```{r, echo = TRUE, eval = TRUE}
+#Cogemos los 6 estados con menos PIBpc
+
+df_vot<- rio::import(here::here("Datos", "df_vot.csv"))
+
+
+MP<- df_vot %>% filter(state %in% c("Mississippi", "Idaho",
+      "Arkansas", "West Virginia","Alabama","South Carolina" ))
+
+pMPB<- ggplot(MP, aes(state,Biden))
+
+pMPT<- ggplot(MP, aes(state,Trump))
+
+pMPB + geom_col(fill="blue") + 
+  labs(title = "Estados pobres", subtitle = "Año 2020", x = "Estados", y = "Biden")+
+  ylim(NA,2000000)+theme_solarized() + 
+  pMPT+ geom_col(fill="red")+ ylim(NA,2000000)+theme_solarized()+
+  labs(x = "Estados", y = "Trump")
+
+```
+
+# 4. Conclusión
+
+<center>
+![](Imagenes/gif.gif){width="45%"}</center>
+
+Una de las principales característacas de estas elecciones es la movilización que han tenido. Donald Trump y Joe Biden son los candidatos que más votos han recibido en la historia. Una de las cosas que se dice,sobre la victoria de Joe Biden, es que ha conseguido movilizar a todo el electorado demócrata tradicionaly también ha conseguido ganar entre los independientes. Otra de las razones, que va enlazado con lo que he analizado, es la victoria en las grandes ciudades. Historicamente los suburbios de las grandes ciudades habian sido votantes del partido republicano pero en estas elecciones ha sido distinto. Los ciudadanos de rentas más bajas en las grandes ciudades han decantado su voto en Joe Biden.
+
+
+```{r, eval = TRUE, echo=FALSE}
+knitr::include_graphics(here::here("imagenes", "trump.jpg"))
+```
+
+
+
+
+# 5. Bibliografía
+
+https://www.kaggle.com/unanimad/us-election-2020
+
+https://www.kaggle.com/mariapushkareva/gdp-per-capita-in-us-states-with-tableau/data?select=bea-gdp-by-state.csv
